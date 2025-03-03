@@ -1,0 +1,111 @@
+{
+    "name": "Lev personal win 10 pro",
+    "programms": [
+        {
+            "name": "mmc",
+            "call": "mmc",
+            "description_md": "# Microsoft Management Console\n### Docs\n https://learn.microsoft.com/ru-ru/windows-server/administration/windows-commands/mmc \n### Description\nMMC - common win programm to set up politics, system behaviour and components.",
+            "tags": [
+                "win 10",
+                "winserver 2022",
+                "winserver 2025"
+            ],
+            "installation": "echo comes with OS package",
+            "deletion": "echo comes with OS package",
+            "status": "Installed",
+            "docs_link": "https://learn.microsoft.com/ru-ru/windows-server/administration/windows-commands/mmc"
+        },
+        {
+            "name": "regedit",
+            "call": "regedit",
+            "description_md": "# Registry Editor\n### Description\nRegedit is a built-in Windows tool for viewing and editing the Windows Registry.\n### Docs\nOfficial documentation is available at Microsoft Learn.",
+            "tags": [
+                "win 10",
+                "winserver 2019"
+            ],
+            "installation": "echo comes with OS package",
+            "deletion": "echo comes with OS package",
+            "status": "Installed",
+            "docs_link": "https://learn.microsoft.com/ru-ru/troubleshoot/windows-server/performance/windows-registry-advanced-users"
+        },
+        {
+            "name": "rustc",
+            "call": "rustc",
+            "description_md": "# Rust Compiler\n### Description\nRustc is the compiler for the Rust programming language, known for its focus on safety and performance.\n### Installation\nFollow the official instructions at rust-lang.org: download rustup-init.exe and run it.\n### Usage\nRun \n```shell\nrustc --version\n```\n to check the installed version.\n### Docs\nFull documentation is available on the official Rust website.",
+            "tags": [
+                "win 10",
+                "development",
+                "rust"
+            ],
+            "installation": "powershell -Command \"Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe -OutFile rustup-init.exe; ./rustup-init.exe -y\"",
+            "deletion": "rustup self uninstall",
+            "status": "Installed",
+            "docs_link": "https://doc.rust-lang.ru/book/"
+        },
+        {
+            "name": "zig",
+            "call": "zig",
+            "description_md": "# Zig Compiler\n### Description\nZig is a general-purpose programming language and toolchain designed for robustness, optimality, and maintainability.\n### Installation\nDownload the latest Windows binary from ziglang.org and extract it.\n### Usage\nRun \n```shell\nzig version\n```\n to verify installation.\n### Docs\nSee the official Zig documentation for more details.",
+            "tags": [
+                "win 10",
+                "development",
+                "zig"
+            ],
+            "installation": "powershell -Command \"Invoke-WebRequest -Uri https://ziglang.org/download/0.12.0/zig-windows-x86_64-0.12.0.zip -OutFile zig.zip; Expand-Archive zig.zip -DestinationPath C:\\zig; $env:Path += ';C:\\zig\\zig-windows-x86_64-0.12.0'\"",
+            "deletion": "rmdir /s /q C:\\zig",
+            "status": "Installed",
+            "docs_link": "https://ziglang.org/documentation/master/"
+        },
+        {
+            "name": "mingw-w64",
+            "call": "gcc",
+            "description_md": "# MinGW-w64\n### Description\nMinGW-w64 is a complete runtime environment for GCC to build native Windows applications.\n### Installation\nInstall via MSYS2 as recommended on the official site.\n### Usage\nRun \n```shell\ngcc --version\n```\n to check the installed version.\n### Docs\nDocumentation is available on the MinGW-w64 site.",
+            "tags": [
+                "win 10",
+                "development",
+                "c/c++"
+            ],
+            "installation": "powershell -Command \"Invoke-WebRequest -Uri https://github.com/msys2/msys2-installer/releases/download/2023-07-18/msys2-x86_64-20230718.exe -OutFile msys2.exe; ./msys2.exe; pacman -S mingw-w64-x86_64-gcc\"",
+            "deletion": "rmdir /s /q C:\\msys64",
+            "status": "Installed",
+            "docs_link": "https://www.msys2.org/"
+        },
+        {
+            "name": "llvm-clang",
+            "call": "clang",
+            "description_md": "# LLVM Tools + Clang\n### Description\nLLVM is a collection of compiler and toolchain technologies, with Clang as its C/C++ compiler.\n### Installation\nDownload and install the pre-built binary from LLVM releases.\n### Usage\nRun \n```shell\nclang --version\n```\n to verify.\n### Docs\nFull details on the LLVM project site.",
+            "tags": [
+                "win 10",
+                "development",
+                "c/c++"
+            ],
+            "installation": "powershell -Command \"Invoke-WebRequest -Uri https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/LLVM-18.1.8-win64.exe -OutFile llvm-installer.exe; ./llvm-installer.exe\"",
+            "deletion": "msiexec /x {product_code} /quiet",
+            "status": "Installed",
+            "docs_link": "https://llvm.org/docs/"
+        },
+        {
+            "name": "python3.12",
+            "call": "python",
+            "description_md": "# Python 3.12\n### Description\nPython 3.12 is a versatile, interpreted programming language with a rich ecosystem.\n### Installation\nDownload and run the official installer from python.org.\n### Usage\nRun \n```shell\npython --version\n```\n to check the version.\n### Docs\nOfficial Python documentation provides extensive resources.",
+            "tags": [
+                "win 10",
+                "development",
+                "python"
+            ],
+            "installation": "powershell -Command \"Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.12.6/python-3.12.6-amd64.exe -OutFile python-installer.exe; ./python-installer.exe /quiet InstallAllUsers=1 PrependPath=1\"",
+            "deletion": "msiexec /x {product_code} /quiet",
+            "status": "Installed",
+            "docs_link": "https://docs.python.org/3.12/"
+        },
+        {
+            "name": "test",
+            "call": "echo test call",
+            "description_md": "# Test programm",
+            "installation": "echo test installation",
+            "deletion": "echo test deletion",
+            "status": "NotInstalled",
+            "docs_link": "https://google.com/"
+        }
+    ]
+}

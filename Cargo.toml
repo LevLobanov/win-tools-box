@@ -1,0 +1,13 @@
+[package]
+name = "win-tools-box"
+description = "Win tool box (maybe not only win later) - tool to access easily all needed programms in one place and install with one button. Short, one-filer, opensource code"
+authors = ["Lev Lobanov <lev.lobanov.f@yandex.ru>"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = { version = "0.13.1", features = ["debug", "markdown"] }
+image = "0.25.5"
+opener = "0.7.2"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"

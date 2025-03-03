@@ -1,0 +1,18 @@
+1) Fix install / uninstall / open multi-word scripts
+2) Search by name
+3) save progress in config file
+4) get updates from remote config file (optionally check hashsums, if possible before updating file)
+5) multiple configs and menu for managing them
+6) config templates
+7) Get system info and display configs based on tags + display tags
+8) porgress bar and async installation / uninstallationw
+9) Usage in README, show this README in Help menu
+10) Settings menu to set hotkeys
+11) I still don't like colors, especially green and red
+12) Refactor this shitty code, saparate logic from graphics and put it in functions
+13) Update graphics, like, making description for programms scrollable
+14) Sroten code, make it stay simple, straightforward, short and one-file easy tool
+15) Optimizations with iced::widgets::Lazy? I don't think, that make big difference, but...
+16) Reduce dependencies? remove image, opener
+17) Better compilation, play with compiler flags
+18) Docs for functions? Not sure, if they needed, but...
