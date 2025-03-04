@@ -6,8 +6,7 @@ use iced::{
         markdown::{self, Highlight},
         row, scrollable, text,
     },
-    window::{settings::PlatformSpecific, Position},
-    Alignment, Background, Border, Element, Length, Padding, Shadow, Size, Task, Theme,
+    Alignment, Background, Border, Element, Length, Padding, Shadow, Task, Theme,
 };
 use serde::Deserialize;
 use std::{collections::BTreeMap, error::Error, fs::File, io::BufReader, path::Path, process};
@@ -27,32 +26,10 @@ fn custom_theme() -> Theme {
 
 pub fn main() -> iced::Result {
     iced::application("Win tool box", WinToolBox::update, WinToolBox::view)
-        .window(iced::window::Settings {
-            size: Size {
-                width: 1200.,
-                height: 800.,
-            },
-            position: Position::Centered,
-            min_size: None,
-            max_size: None,
-            visible: true,
-            resizable: true,
-            decorations: false,
-            transparent: true,
-            level: iced::window::Level::Normal,
-            icon: {
-                let img = image::open("wintoolbox.jpg").expect("Failed to open icon");
-                let rgba = img.to_rgba8();
-                let (width, height) = rgba.dimensions();
-                Some(
-                    iced::window::icon::from_rgba(rgba.into_raw(), width, height)
-                        .expect("Failed to create icon"),
-                )
-            },
-            platform_specific: PlatformSpecific::default(),
-            exit_on_close_request: true,
-        })
         .theme(|_| custom_theme())
+        .antialiasing(true)
+        .centered()
+        .decorations(false)
         .run_with(WinToolBox::new)
 }
 
@@ -63,6 +40,7 @@ struct WinToolBox {
     programms: BTreeMap<String, Programm>,
     config_name: String,
     error_message: Option<String>,
+    cur_menu: ControlMenuVariations,
 }
 
 #[derive(Default, Deserialize, Clone)]
@@ -82,6 +60,15 @@ pub enum ProgrammManipulation {
     Uninstall,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub enum ControlMenuVariations {
+    HelpMenu,
+    #[default]
+    ProgrammsMenu,
+    ConfigsMenu,
+    ExitProgramm,
+}
+
 #[derive(Debug, Clone)]
 enum Message {
     SelectProgrammFromList(String),
@@ -89,10 +76,7 @@ enum Message {
     DescriptionAndDocsLinkClicked(markdown::Url),
     OpenContainingFolder,
     OpenDocsOnline,
-    HelpMenu,
-    SettingsMenu,
-    ConfigurationFilesMenu,
-    ExitProgramm,
+    ControlMenuBtn(ControlMenuVariations),
     ManipulateProgramm(ProgrammManipulation),
     Manipulationresult(ProgrammManipulation, Result<(), String>),
 }
@@ -107,6 +91,7 @@ impl WinToolBox {
                 current_programm: None,
                 config_name: conf_name,
                 error_message: None,
+                cur_menu: ControlMenuVariations::ProgrammsMenu,
             },
             Task::none(),
         )
@@ -222,23 +207,72 @@ impl WinToolBox {
                 }
                 Task::none()
             }
-            Message::HelpMenu => {
-                println!("Not implemented");
+            Message::ControlMenuBtn(variation) => {
+                self.cur_menu = match variation {
+                    ControlMenuVariations::ExitProgramm => {process::exit(0)},
+                    other => other,
+                };
                 Task::none()
             }
-            Message::SettingsMenu => {
-                println!("Not implemented");
-                Task::none()
-            }
-            Message::ConfigurationFilesMenu => {
-                println!("Not implemented");
-                Task::none()
-            }
-            Message::ExitProgramm => process::exit(0),
         }
     }
 
     fn view(&self) -> Element<Message> {
+        let control_menu_list = row![
+            button("[ Programms ]")
+                .on_press(Message::ControlMenuBtn(ControlMenuVariations::ProgrammsMenu))
+                .style(menu_buttons_style),
+            button("[ Help ]")
+                .on_press(Message::ControlMenuBtn(ControlMenuVariations::HelpMenu))
+                .style(menu_buttons_style),
+            button("[ Config files ]")
+                .on_press(Message::ControlMenuBtn(ControlMenuVariations::ConfigsMenu))
+                .style(menu_buttons_style),
+            iced::widget::Space::with_width(Length::Fill),
+            button("[ Exit ]")
+                .on_press(Message::ControlMenuBtn(ControlMenuVariations::ExitProgramm))
+                .style(menu_buttons_style),
+        ]
+        .spacing(10)
+        .align_y(Alignment::Center)
+        .padding(padding::left(20).right(20).bottom(3).top(3))
+        .width(Length::Fill);
+
+        let control_menu_container = container(control_menu_list)
+            .align_y(Alignment::Center)
+            .style(containers_style)
+            .width(Length::Fill)
+            .height(Length::FillPortion(2));
+
+        let bottom_info_line = row![
+            text(format!("Loaded config: {}", self.config_name)).size(14),
+            iced::widget::Space::with_width(Length::Fill),
+            if let Some(error) = &self.error_message {
+                text(error).size(14).color(color!(0xBF, 0x61, 0x6A))
+            } else {
+                text("Ok!").size(14).color(color!(0xA3, 0xBE, 0x8C))
+            }
+        ]
+        .height(Length::FillPortion(1))
+        .spacing(5)
+        .width(Length::Fill);
+
+        let cur_menu = container(match self.cur_menu {
+            ControlMenuVariations::HelpMenu => self.help_scene(),
+            ControlMenuVariations::ProgrammsMenu => self.main_scene(),
+            ControlMenuVariations::ConfigsMenu => self.configs_scene(),
+            ControlMenuVariations::ExitProgramm => iced::widget::text!("Unreacheable!").into(),
+        })
+        .height(Length::FillPortion(37))
+        .width(Length::Fill);
+
+        iced::widget::column![control_menu_container, cur_menu, bottom_info_line]
+            .padding(padding::all(10).bottom(0))
+            .spacing(8)
+            .into()
+    }
+
+    fn main_scene(&self) -> Element<Message> {
         let programms_scrollable_list = scrollable(iced::widget::column(
             self.programms
                 .iter()
@@ -313,54 +347,17 @@ impl WinToolBox {
             .width(Length::FillPortion(5))
             .height(Length::Fill);
 
-        let info_bar_list = row![
-            button("[ Settings ]")
-                .on_press(Message::SettingsMenu)
-                .style(menu_buttons_style),
-            button("[ Help ]")
-                .on_press(Message::HelpMenu)
-                .style(menu_buttons_style),
-            button("[ Config files ]")
-                .on_press(Message::ConfigurationFilesMenu)
-                .style(menu_buttons_style),
-            iced::widget::Space::with_width(Length::Fill),
-            button("[ Exit ]")
-                .on_press(Message::ExitProgramm)
-                .style(menu_buttons_style),
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center)
-        .padding(padding::left(20).right(20).bottom(3).top(3))
-        .width(Length::Fill);
-
-        let info_bar_container = container(info_bar_list)
-            .align_y(Alignment::Center)
-            .style(containers_style)
-            .width(Length::Fill)
-            .height(Length::FillPortion(2));
-
-        let workspace = row![programms_list_container, description_container]
-            .height(Length::FillPortion(37))
-            .width(Length::Fill)
-            .spacing(8);
-
-        let info_stroke = row![
-            text(format!("Loaded config: {}", self.config_name)).size(14),
-            iced::widget::Space::with_width(Length::Fill),
-            if let Some(error) = &self.error_message {
-                text(error).size(14).color(color!(0xBF, 0x61, 0x6A))
-            } else {
-                text("Ok!").size(14).color(color!(0xA3, 0xBE, 0x8C))
-            }
-        ]
-        .height(Length::FillPortion(1))
-        .spacing(5)
-        .width(Length::Fill);
-
-        iced::widget::column![info_bar_container, workspace, info_stroke]
-            .padding(padding::all(10).bottom(0))
+        row![programms_list_container, description_container]
             .spacing(8)
             .into()
+    }
+
+    fn help_scene(&self) -> Element<Message> {
+        iced::widget::text!("Here will be (help) rendered README").size(30).into()
+    }
+
+    fn configs_scene(&self) -> Element<Message> {
+        iced::widget::text!("Here will be configuration files menu").size(30).into()
     }
 }
 

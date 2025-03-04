@@ -1,4 +1,3 @@
-1) Fix install / uninstall / open multi-word scripts
 2) Search by name
 3) save progress in config file
 4) get updates from remote config file (optionally check hashsums, if possible before updating file)
