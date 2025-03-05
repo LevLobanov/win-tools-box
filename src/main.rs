@@ -9,7 +9,7 @@ use iced::{
     Alignment, Background, Border, Element, Length, Padding, Shadow, Task, Theme,
 };
 use serde::Deserialize;
-use std::{collections::BTreeMap, error::Error, fs::File, io::BufReader, path::Path, process};
+use std::{collections::BTreeMap, error::Error, fs::File, io::{BufReader, Read}, path::Path, process};
 
 fn custom_theme() -> Theme {
     Theme::custom(
@@ -41,6 +41,7 @@ struct WinToolBox {
     config_name: String,
     error_message: Option<String>,
     cur_menu: ControlMenuVariations,
+    help_md: Vec<markdown::Item>,
 }
 
 #[derive(Default, Deserialize, Clone)]
@@ -92,6 +93,7 @@ impl WinToolBox {
                 config_name: conf_name,
                 error_message: None,
                 cur_menu: ControlMenuVariations::ProgrammsMenu,
+                help_md: Vec::new(),
             },
             Task::none(),
         )
@@ -210,6 +212,16 @@ impl WinToolBox {
             Message::ControlMenuBtn(variation) => {
                 self.cur_menu = match variation {
                     ControlMenuVariations::ExitProgramm => {process::exit(0)},
+                    ControlMenuVariations::HelpMenu => {
+                        let mut readme_text = String::new();
+                        if let Some(mut readme) = File::open("README.md").ok() {
+                            readme.read_to_string(&mut readme_text).unwrap_or_else(|_| {readme_text = "Failed to read README.md".to_string(); 0});
+                        } else {
+                            readme_text = "Can't find a README.md file, help and docs stored in it.".to_string();
+                        }
+                        self.help_md = markdown::parse(&readme_text).collect();
+                        ControlMenuVariations::HelpMenu
+                    },
                     other => other,
                 };
                 Task::none()
@@ -353,7 +365,12 @@ impl WinToolBox {
     }
 
     fn help_scene(&self) -> Element<Message> {
-        iced::widget::text!("Here will be (help) rendered README").size(30).into()
+        markdown::view(&self.help_md,
+            markdown::Settings::default(), 
+            markdown::Style::from_palette(Theme::CatppuccinLatte.palette())
+        )
+            .map(Message::DescriptionAndDocsLinkClicked)
+            .into()
     }
 
     fn configs_scene(&self) -> Element<Message> {
