@@ -544,7 +544,7 @@ impl WinToolBox {
             let default_container_style = containers_style(_t);
             container::Style {
                 text_color: default_container_style.text_color,
-                background: Some(Background::Color(color!(0x34, 0x3D, 0x4B, 0.))),
+                background: Some(Background::Color(color!(0x34, 0x3D, 0x4B, 0.6))),
                 border: border::Border::default(),
                 shadow: default_container_style.shadow,
             }
