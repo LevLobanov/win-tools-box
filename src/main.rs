@@ -1,15 +1,24 @@
 use iced::{
-    border, color, padding,
+    border, color, event, keyboard, padding,
     theme::Palette,
     widget::{
-        button, container,
+        button, column, container,
         markdown::{self, Highlight},
-        row, scrollable, text,
+        row, scrollable, stack, text,
     },
-    Alignment, Background, Border, Element, Length, Padding, Shadow, Task, Theme,
+    Alignment, Background, Border, Element, Event, Length, Padding, Shadow, Subscription, Task,
+    Theme,
 };
 use serde::Deserialize;
-use std::{collections::BTreeMap, error::Error, fs::File, io::{BufReader, Read}, path::Path, process};
+use std::{
+    cmp::min,
+    collections::BTreeMap,
+    error::Error,
+    fs::File,
+    io::{BufReader, Read},
+    path::Path,
+    process,
+};
 
 fn custom_theme() -> Theme {
     Theme::custom(
@@ -26,11 +35,20 @@ fn custom_theme() -> Theme {
 
 pub fn main() -> iced::Result {
     iced::application("Win tool box", WinToolBox::update, WinToolBox::view)
+        .subscription(WinToolBox::subscription)
         .theme(|_| custom_theme())
         .antialiasing(true)
         .centered()
         .decorations(false)
         .run_with(WinToolBox::new)
+}
+
+#[derive(Debug, Default)]
+pub enum StatusMessageType {
+    Error,
+    Success,
+    #[default]
+    Info,
 }
 
 #[derive(Default)]
@@ -39,9 +57,13 @@ struct WinToolBox {
     current_programm: Option<Programm>,
     programms: BTreeMap<String, Programm>,
     config_name: String,
-    error_message: Option<String>,
+    status_message: (String, StatusMessageType),
     cur_menu: ControlMenuVariations,
     help_md: Vec<markdown::Item>,
+    search_text: String,
+    search_selected: bool,
+    selected_result_index: usize,
+    search_programms_names: Vec<String>,
 }
 
 #[derive(Default, Deserialize, Clone)]
@@ -80,6 +102,7 @@ enum Message {
     ControlMenuBtn(ControlMenuVariations),
     ManipulateProgramm(ProgrammManipulation),
     Manipulationresult(ProgrammManipulation, Result<(), String>),
+    AppEvent(Event),
 }
 
 impl WinToolBox {
@@ -91,19 +114,28 @@ impl WinToolBox {
                 programms: progs,
                 current_programm: None,
                 config_name: conf_name,
-                error_message: None,
+                status_message: ("Ok!".to_string(), StatusMessageType::Success),
                 cur_menu: ControlMenuVariations::ProgrammsMenu,
                 help_md: Vec::new(),
+                search_text: String::new(),
+                search_selected: false,
+                selected_result_index: 0,
+                search_programms_names: Vec::new(),
             },
             Task::none(),
         )
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        event::listen().map(Message::AppEvent)
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::DescriptionAndDocsLinkClicked(link) => {
                 if let Err(e) = opener::open(link.as_str()) {
-                    self.error_message = Some(format!("Can't open link: {}", e));
+                    self.status_message =
+                        (format!("Can't open link: {}", e), StatusMessageType::Error);
                 }
                 Task::none()
             }
@@ -111,7 +143,8 @@ impl WinToolBox {
                 if let Some(cur_programm) = &self.current_programm {
                     if let Some(docs_link) = &cur_programm.docs_link {
                         if let Err(e) = opener::open(docs_link) {
-                            self.error_message = Some(format!("Can't open link: {}", e));
+                            self.status_message =
+                                (format!("Can't open link: {}", e), StatusMessageType::Error);
                         }
                     }
                 }
@@ -133,13 +166,17 @@ impl WinToolBox {
                                 if let Err(e) =
                                     process::Command::new("explorer").arg(folder_path).spawn()
                                 {
-                                    self.error_message =
-                                        Some(format!("Can't open explorer: {}", e));
+                                    self.status_message = (
+                                        format!("Can't open explorer: {}", e),
+                                        StatusMessageType::Error,
+                                    );
                                 }
                             }
                             _ => {
-                                self.error_message =
-                                    Some(format!("Program not found: {:#?}", output))
+                                self.status_message = (
+                                    format!("Program not found: {:#?}", output),
+                                    StatusMessageType::Error,
+                                )
                             }
                         }
                     }
@@ -147,6 +184,8 @@ impl WinToolBox {
                 Task::none()
             }
             Message::SelectProgrammFromList(select_prog_name) => {
+                self.search_selected = false;
+                self.selected_result_index = 0;
                 for (prog_name, prog) in &self.programms {
                     if *prog_name == select_prog_name {
                         self.current_programm_markdown =
@@ -161,7 +200,8 @@ impl WinToolBox {
                     if let Some(call) = &cur_programm.call {
                         if let Err(e) = run_script_in_new_window(call) {
                             println!("Error running programm: \"{}\" Error: {}", call, e);
-                            self.error_message = Some(format!("Execution failed: {}", e));
+                            self.status_message =
+                                (format!("Execution failed: {}", e), StatusMessageType::Error);
                         }
                     }
                 }
@@ -203,27 +243,127 @@ impl WinToolBox {
                                 }
                             }
                         }
-                        self.error_message = None;
+                        self.status_message = ("Ok!".to_string(), StatusMessageType::Success);
                     }
-                    Err(e) => self.error_message = Some(e),
+                    Err(e) => self.status_message = (e, StatusMessageType::Error),
                 }
                 Task::none()
             }
             Message::ControlMenuBtn(variation) => {
+                self.search_selected = false;
                 self.cur_menu = match variation {
-                    ControlMenuVariations::ExitProgramm => {process::exit(0)},
+                    ControlMenuVariations::ExitProgramm => {
+                        return iced::window::get_latest().and_then(iced::window::close);
+                    }
                     ControlMenuVariations::HelpMenu => {
                         let mut readme_text = String::new();
                         if let Some(mut readme) = File::open("README.md").ok() {
-                            readme.read_to_string(&mut readme_text).unwrap_or_else(|_| {readme_text = "Failed to read README.md".to_string(); 0});
+                            readme.read_to_string(&mut readme_text).unwrap_or_else(|_| {
+                                readme_text = "Failed to read README.md".to_string();
+                                0
+                            });
                         } else {
-                            readme_text = "Can't find a README.md file, help and docs stored in it.".to_string();
+                            readme_text =
+                                "Can't find a README.md file, help and docs stored in it."
+                                    .to_string();
                         }
                         self.help_md = markdown::parse(&readme_text).collect();
                         ControlMenuVariations::HelpMenu
-                    },
+                    }
                     other => other,
                 };
+                Task::none()
+            }
+            Message::AppEvent(given_event) => {
+                if let Event::Keyboard(keyboard::Event::KeyPressed {
+                    key: _,
+                    modified_key,
+                    physical_key: _,
+                    location: _,
+                    modifiers: _,
+                    text: _,
+                }) = given_event
+                {
+                    match modified_key {
+                        keyboard::Key::Named(named) => match named {
+                            keyboard::key::Named::ArrowDown => {
+                                self.selected_result_index = min(
+                                    self.selected_result_index + 1,
+                                    if self.search_programms_names.len() > 0 {
+                                        self.search_programms_names.len() - 1
+                                    } else {
+                                        0
+                                    },
+                                );
+                            }
+                            keyboard::key::Named::ArrowUp => {
+                                if self.selected_result_index != 0 {
+                                    self.selected_result_index -= 1;
+                                }
+                            }
+                            keyboard::key::Named::Enter => {
+                                let avaliable_progs = self.programms_startswith(&self.search_text);
+                                if let Some(name) = avaliable_progs.get(min(
+                                    self.selected_result_index,
+                                    if self.search_programms_names.len() > 0 {
+                                        self.search_programms_names.len() - 1
+                                    } else {
+                                        0
+                                    },
+                                )) {
+                                    return self
+                                        .update(Message::SelectProgrammFromList(name.clone()));
+                                } else {
+                                    self.search_selected = false;
+                                    self.search_text.clear();
+                                    self.selected_result_index = 0;
+                                }
+                            }
+                            keyboard::key::Named::Backspace => {
+                                self.search_programms_names =
+                                    self.programms_startswith(&self.search_text);
+                                self.search_text.pop();
+                            }
+                            keyboard::key::Named::Escape => {
+                                if self.search_selected {
+                                    self.search_selected = false;
+                                    self.search_text.clear();
+                                    self.selected_result_index = 0;
+                                } else {
+                                    return self.update(Message::ControlMenuBtn(
+                                        ControlMenuVariations::ExitProgramm,
+                                    ));
+                                }
+                            }
+                            keyboard::key::Named::Space => {
+                                if !self.search_selected {
+                                    self.search_selected = true;
+                                    self.search_text = String::from(" ");
+                                    self.search_programms_names =
+                                        self.programms_startswith(&self.search_text);
+                                } else {
+                                    self.search_text += " ";
+                                    self.search_programms_names =
+                                        self.programms_startswith(&self.search_text);
+                                }
+                            }
+                            _ => {}
+                        },
+                        keyboard::Key::Character(ch) => {
+                            if !self.search_selected {
+                                self.search_selected = true;
+                                self.search_text = ch.to_string();
+                                self.search_programms_names =
+                                    self.programms_startswith(&self.search_text);
+                            } else {
+                                self.search_text += ch.to_string().as_ref();
+                                self.search_programms_names =
+                                    self.programms_startswith(&self.search_text);
+                            }
+                        }
+                        keyboard::Key::Unidentified => {}
+                    }
+                }
                 Task::none()
             }
         }
@@ -232,7 +372,9 @@ impl WinToolBox {
     fn view(&self) -> Element<Message> {
         let control_menu_list = row![
             button("[ Programms ]")
-                .on_press(Message::ControlMenuBtn(ControlMenuVariations::ProgrammsMenu))
+                .on_press(Message::ControlMenuBtn(
+                    ControlMenuVariations::ProgrammsMenu
+                ))
                 .style(menu_buttons_style),
             button("[ Help ]")
                 .on_press(Message::ControlMenuBtn(ControlMenuVariations::HelpMenu))
@@ -259,10 +401,11 @@ impl WinToolBox {
         let bottom_info_line = row![
             text(format!("Loaded config: {}", self.config_name)).size(14),
             iced::widget::Space::with_width(Length::Fill),
-            if let Some(error) = &self.error_message {
-                text(error).size(14).color(color!(0xBF, 0x61, 0x6A))
-            } else {
-                text("Ok!").size(14).color(color!(0xA3, 0xBE, 0x8C))
+            match &self.status_message {
+                (message, StatusMessageType::Error) => text(message).size(14).color(color_error()),
+                (message, StatusMessageType::Success) =>
+                    text(message).size(14).color(color_success()),
+                (message, StatusMessageType::Info) => text(message).size(14).color(color_info()),
             }
         ]
         .height(Length::FillPortion(1))
@@ -332,15 +475,7 @@ impl WinToolBox {
         let description_and_docs_md = markdown::view(
             &self.current_programm_markdown,
             markdown::Settings::default(),
-            markdown::Style {
-                inline_code_highlight: Highlight {
-                    background: Background::Color(color!(0x88, 0xC0, 0xD0)),
-                    border: Border::default(),
-                },
-                inline_code_padding: Padding::from(4),
-                inline_code_color: color!(0x88, 0xC0, 0xD0),
-                link_color: color!(0x81, 0xA1, 0xC1),
-            },
+            markdwon_style(),
         )
         .map(Message::DescriptionAndDocsLinkClicked);
 
@@ -359,22 +494,91 @@ impl WinToolBox {
             .width(Length::FillPortion(5))
             .height(Length::Fill);
 
-        row![programms_list_container, description_container]
-            .spacing(8)
-            .into()
+        let main_view = row![programms_list_container, description_container].spacing(8);
+
+        if self.search_selected {
+            stack![main_view, self.search_bar_overlapscene()].into()
+        } else {
+            stack![main_view].into()
+        }
+    }
+
+    fn search_bar_overlapscene(&self) -> Element<Message> {
+        let search_bar = column![
+            container(
+                text(if self.search_text.len() > 0 {
+                    &self.search_text
+                } else {
+                    "=>_Programm name_"
+                })
+                .size(18)
+                .align_x(Alignment::Center)
+                .align_y(Alignment::Center)
+                .width(Length::Fill)
+                .height(Length::Fill)
+            )
+            .style(containers_style)
+            .width(Length::Fill)
+            .height(Length::FillPortion(1)),
+            container(scrollable(column(
+                self.search_programms_names
+                    .iter()
+                    .map(|name| button(name.as_str())
+                        .on_press(Message::SelectProgrammFromList(name.to_owned()))
+                        .width(Length::Fill)
+                        .style(programms_buttons_style(ProgrammStatus::Installed))
+                        .into())
+                    .collect::<Vec<Element<_>>>()
+            )))
+            .style(containers_style)
+            .width(Length::Fill)
+            .height(Length::FillPortion(9))
+        ];
+
+        container(row![
+            iced::widget::Space::with_width(Length::FillPortion(1)),
+            search_bar.width(Length::FillPortion(2)).padding(5),
+            iced::widget::Space::with_width(Length::FillPortion(1)),
+        ])
+        .style(|_t| {
+            let default_container_style = containers_style(_t);
+            container::Style {
+                text_color: default_container_style.text_color,
+                background: Some(Background::Color(color!(0x34, 0x3D, 0x4B, 0.))),
+                border: border::Border::default(),
+                shadow: default_container_style.shadow,
+            }
+        })
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(5)
+        .into()
     }
 
     fn help_scene(&self) -> Element<Message> {
-        markdown::view(&self.help_md,
-            markdown::Settings::default(), 
-            markdown::Style::from_palette(Theme::CatppuccinLatte.palette())
+        markdown::view(
+            &self.help_md,
+            markdown::Settings::default(),
+            markdwon_style(),
         )
-            .map(Message::DescriptionAndDocsLinkClicked)
-            .into()
+        .map(Message::DescriptionAndDocsLinkClicked)
+        .into()
     }
 
     fn configs_scene(&self) -> Element<Message> {
-        iced::widget::text!("Here will be configuration files menu").size(30).into()
+        iced::widget::text!("Here will be configuration files menu")
+            .size(30)
+            .into()
+    }
+
+    fn programms_startswith(&self, startswith: &str) -> Vec<String> {
+        let mut res = Vec::new();
+        for (name, _) in &self.programms {
+            if name.starts_with(startswith) {
+                res.push(name.clone());
+            }
+        }
+        res
     }
 }
 
@@ -451,6 +655,30 @@ fn containers_style(_t: &Theme) -> container::Style {
         text_color: Some(color!(0xD8, 0xDE, 0xE9)),
         shadow: Shadow::default(),
     }
+}
+
+fn markdwon_style() -> markdown::Style {
+    markdown::Style {
+        inline_code_highlight: Highlight {
+            background: Background::Color(color!(0x88, 0xC0, 0xD0)),
+            border: Border::default(),
+        },
+        inline_code_padding: Padding::from(4),
+        inline_code_color: color!(0x88, 0xC0, 0xD0),
+        link_color: color!(0x81, 0xA1, 0xC1),
+    }
+}
+
+pub fn color_error() -> iced::Color {
+    color!(0xBF, 0x61, 0x6A)
+}
+
+pub fn color_success() -> iced::Color {
+    color!(0xA3, 0xBE, 0x8C)
+}
+
+pub fn color_info() -> iced::Color {
+    color!(0xD8, 0xDE, 0xE9)
 }
 
 fn run_script_in_new_window(script: &str) -> Result<Result<(), String>, String> {

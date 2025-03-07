@@ -5,7 +5,7 @@
 6) config templates
 7) Get system info and display configs based on tags + display tags
 8) porgress bar and async installation / uninstallationw
-9) Usage in README, show this README in Help menu
+9) Usage in README
 10) Settings menu to set hotkeys
 11) I still don't like colors, especially green and red
 12) Refactor this shitty code, saparate logic from graphics and put it in functions
