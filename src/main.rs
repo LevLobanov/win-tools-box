@@ -22,7 +22,7 @@ use std::{
 
 fn custom_theme() -> Theme {
     Theme::custom(
-        "CustomLatte".to_string(),
+        "Custom".to_string(),
         Palette {
             background: color!(0x2E, 0x34, 0x40),
             text: color!(0xD8, 0xDE, 0xE9),
@@ -480,7 +480,10 @@ impl WinToolBox {
         .map(Message::DescriptionAndDocsLinkClicked);
 
         let description_and_docs_container = container(description_and_docs_md)
-            .style(containers_style)
+            .style(|t| {
+                let default_style = containers_style(t);
+                container::Style { text_color: default_style.text_color, background: default_style.background, border: Border::default(), shadow: default_style.shadow }
+            })
             .padding(padding::left(20).right(20))
             .height(Length::FillPortion(14));
 
@@ -489,7 +492,7 @@ impl WinToolBox {
 
         let description_container = container(description_elements)
             .align_x(Alignment::Center)
-            .padding(padding::all(10).bottom(0))
+            .padding(padding::all(10).bottom(5))
             .style(containers_style)
             .width(Length::FillPortion(5))
             .height(Length::Fill);
